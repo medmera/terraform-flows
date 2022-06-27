@@ -23,7 +23,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `Apply job is running for [${{ inputs.branch-name }}](https://github.com/${{ inputs.github-repo }}/actions/workflows/apply.yml?query=branch%3A${{ inputs.branch-name }}) click on this link to monitor the job progress` 
+            const output = `Apply job is running for [${{ inputs.branch-name }}](https://github.com/${{ inputs.github-repo }}/actions/workflows/gcp-terraform-apply.yml?query=branch%3A${{ inputs.branch-name }}) click on this link to monitor the job progress` 
                                                        
             github.rest.issues.createComment({
              issue_number: context.issue.number,
