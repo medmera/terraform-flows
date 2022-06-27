@@ -28,6 +28,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
 
+      - name: Checkout Terraform GCP Repo
+        uses: actions/checkout@v2
+        with:
+          repository: medmera/terraform-gcp
+          path: terraform-gcp
+
+      - name: terraform-gcp to PATH
+        run: |
+          echo "$(pwd)/../terraform-gcp/bin" >> $GITHUB_PATH
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
 
@@ -39,20 +49,20 @@ jobs:
 
       - id: init
         name: Terraform init
-        run: ./tf-wrapper.sh init ${{ inputs.branch-name }} $(pwd)/../policy-library FILESYSTEM
+        run: tf-wrapper.sh init ${{ inputs.branch-name }} $(pwd)/../policy-library FILESYSTEM
         env:
           GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
 
 
       - id: plan
         name: Terraform Plan
-        run: ./tf-wrapper.sh plan ${{ inputs.branch-name }}
+        run: tf-wrapper.sh plan ${{ inputs.branch-name }}
         env:
           GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
 
       - id: apply
         name: Terraform Apply
-        run: ./tf-wrapper.sh apply ${{ inputs.branch-name }}
+        run: tf-wrapper.sh apply ${{ inputs.branch-name }}
         env:
           GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
 
