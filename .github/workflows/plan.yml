@@ -57,7 +57,7 @@ jobs:
 
       - name: Terraform init
         id: init
-        run: ./tf-wrapper.sh init ${{ inputs.branch-name }}
+        run: tf-wrapper.sh init ${{ inputs.branch-name }}
         if: steps.fmt.outcome == 'success'
         continue-on-error: true
         env:
@@ -73,7 +73,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: ./tf-wrapper.sh plan ${{ inputs.branch-name }}
+        run: tf-wrapper.sh plan ${{ inputs.branch-name }}
         if: steps.configValidate.outcome == 'success'
         continue-on-error: true
         env:
