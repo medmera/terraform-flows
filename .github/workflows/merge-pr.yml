@@ -1,0 +1,37 @@
+on:
+  workflow_call:
+    inputs:
+      github-organization:
+        description: The GitHub organization name
+        required: true
+        type: string
+      github-repo:
+        description: The GitHub repository name
+        required: true
+        type: string
+      branch-name:
+        description: Name of the branch which is target to the PR
+        required: true
+        type: string
+
+jobs:
+  if_merged:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - run: env
+      - run: |
+          echo The PR was merged
+      - name: Update Pull Request
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `Apply job is running for [${{ inputs.branch-name }}](https://github.com/${{ inputs.github-organization }}/${{ inputs.github-repo }}/actions/workflows/apply.yml?query=branch%3A${{ inputs.branch-name }}) click on this link to monitor the job progress` 
+                                                       
+            github.rest.issues.createComment({
+             issue_number: context.issue.number,
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             body: output
+            })

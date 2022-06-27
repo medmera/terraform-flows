@@ -1,0 +1,62 @@
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        default: './terraform'
+        type: string
+      branch-name:
+        required: true
+        type: string
+    secrets:
+      GOOGLE_CREDENTIALS:
+        description: The credentials of the Github Service Account to use
+        required: true
+      TERRAFORM_SERVICE_ACCOUNT:
+        description: The Terraform Service Account to impersonate
+        required: true
+
+jobs:
+  terraform:
+    name: 'Terraform Apply'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+
+      - id: init
+        name: Terraform init
+        run: ./tf-wrapper.sh init ${{ inputs.branch-name }} $(pwd)/../policy-library FILESYSTEM
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+
+      - id: plan
+        name: Terraform Plan
+        run: ./tf-wrapper.sh plan ${{ inputs.branch-name }}
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - id: apply
+        name: Terraform Apply
+        run: ./tf-wrapper.sh apply ${{ inputs.branch-name }}
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Terraform Apply Status
+        if: steps.apply.outcome != 'success'
+        run: exit 1
+

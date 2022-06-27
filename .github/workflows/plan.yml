@@ -1,0 +1,130 @@
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: false
+        default: './terraform'
+        type: string
+      branch-name:
+        required: true
+        type: string
+    secrets:
+      GOOGLE_CREDENTIALS:
+        description: The credentials of the Github Service Account to use
+        required: true
+      TERRAFORM_SERVICE_ACCOUNT:
+        description: The Terraform Service Account to impersonate
+        required: true
+      PACKAGES_READ_PAT:
+        description: An access token that are allowed to read packages
+        required: true
+jobs:
+  terraform:
+    name: 'Terraform Plan'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Checkout Terraform GCP Repo
+        uses: actions/checkout@v2
+        with:
+          repository: medmera/terraform-gcp
+          path: terraform-gcp
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Add working dir and terraform-gcp to PATH
+        run: |
+          echo "$(pwd)" >> $GITHUB_PATH
+          echo "$(pwd)/../terraform-gcp/bin" >> $GITHUB_PATH
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+
+      - id: fmt
+        name: Check format
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform init
+        id: init
+        run: ./tf-wrapper.sh init ${{ inputs.branch-name }}
+        if: steps.fmt.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Terraform Config Validate
+        id: configValidate
+        run: terraform validate -json
+        if: steps.init.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Terraform Plan
+        id: plan
+        run: ./tf-wrapper.sh plan ${{ inputs.branch-name }}
+        if: steps.configValidate.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Install Terraform Validator
+        if: steps.plan.outcome == 'success'
+        run: |
+          curl -s 'https://maven.pkg.github.com/medmera/maven-release/com.google/terraform-validator/0.13.0/terraform-validator-0.13.0.zip' -H "Authorization: Bearer ${{ secrets.PACKAGES_READ_PAT }}" -L -O
+          unzip terraform-validator-0.13.0.zip      
+
+      - name: Terraform Validate
+        id: validate
+        # tf-wrapper.sh validate ${{ inputs.branch-name }} $(pwd)/../terraform-gcp/policy-library '' FILESYSTEM
+        run: terraform-validator version
+        if: steps.plan.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${{ secrets.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Update Pull Request
+        uses: actions/github-script@v6
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Config Validation ⚙️\`${{ steps.configValidate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+            
+            </details>
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Plan Status
+        if: steps.validate.outcome != 'success'
+        run: exit 1
+
