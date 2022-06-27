@@ -2,7 +2,7 @@ on:
   workflow_call:
     inputs:
       github-repo:
-        description: The GitHub repository name
+        description: The GitHub owner/repository name
         required: true
         type: string
       branch-name:
