@@ -3,7 +3,7 @@ on:
     inputs:
       working-directory:
         required: false
-        default: './terraform'
+        default: './'
         type: string
       branch-name:
         required: true
